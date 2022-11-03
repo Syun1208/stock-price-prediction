@@ -1,4 +1,3 @@
-
 from keras.models import Sequential
 from keras.layers import Convolution2D
 from keras.layers import MaxPooling2D
@@ -14,19 +13,19 @@ from keras.optimizers import Adam
 import numpy as np
 import tensorflow as tf
 from keras import regularizers
-from keras.layers.advanced_activations import LeakyReLU
+from keras.layers import LeakyReLU
 
 path_drive = 'P://fm//py//images'
 
 # Initialising the CNN
 Classifier = Sequential()
 # Step 1 - Convolution
-Classifier.add(Convolution2D(32, 3, 3, input_shape = (64,64,3)))
+Classifier.add(Convolution2D(32, 3, 3, input_shape=(64, 64, 3)))
 Classifier.add(LeakyReLU(alpha=0.1))
 # Classifier.add(BatchNormalization()) #no need
 
 # Step 2 - Pooling
-Classifier.add(MaxPooling2D(pool_size = (2,2)))
+Classifier.add(MaxPooling2D(pool_size=(2, 2)))
 Classifier.add(Dropout(0.25))
 
 # Classifier.add(Dense(64, activation= 'relu'))
@@ -34,7 +33,7 @@ Classifier.add(Dropout(0.25))
 Classifier.add(Convolution2D(64, 3, 3))
 Classifier.add(LeakyReLU(alpha=0.1))
 # Classifier.add(BatchNormalization())
-Classifier.add(MaxPooling2D(pool_size = (2,2)))
+Classifier.add(MaxPooling2D(pool_size=(2, 2)))
 # Classifier.add(Dropout(0.5))
 
 # Classifier.add(Dense(64,input_dim = 64,
@@ -47,7 +46,7 @@ Classifier.add(MaxPooling2D(pool_size = (2,2)))
 # Classifier.add(MaxPooling2D(pool_size = (2,2)))
 # Classifier.add(Dropout(0.25))
 
-#forth layer
+# forth layer
 # Classifier.add(Convolution2D(32, 3, 3, activation = 'relu'))
 # #Classifier.add(BatchNormalization())
 # Classifier.add(MaxPooling2D(pool_size = (2,2)))
@@ -57,50 +56,43 @@ Classifier.add(MaxPooling2D(pool_size = (2,2)))
 Classifier.add(Flatten())
 
 # Step 4 - Full connection
-#output_dim = 128
+# output_dim = 128
 
-Classifier.add(Dense( 128, activation = 'linear'))
-Classifier.add(Dropout(0.1,name='Dropout_Regularization')) #dropout=1 for fixing last epoch fluctuation
-Classifier.add(Dense( 7, activation = 'softmax'))
+Classifier.add(Dense(128, activation='linear'))
+Classifier.add(Dropout(0.1, name='Dropout_Regularization'))  # dropout=1 for fixing last epoch fluctuation
+Classifier.add(Dense(7, activation='softmax'))
 
 # Compiling the CNN
 opt = Adam(lr=0.0001)
-Classifier.compile(optimizer = opt, loss = 'categorical_crossentropy',
+Classifier.compile(optimizer=opt, loss='categorical_crossentropy',
                    metrics=['accuracy'])
 
-
 # Part 2 - Fitting the CNN to the images
- 
-
-train_datagen = ImageDataGenerator( featurewise_center=False)
-
-test_datagen = ImageDataGenerator( featurewise_center=False)
 
 
+train_datagen = ImageDataGenerator(featurewise_center=False)
+
+test_datagen = ImageDataGenerator(featurewise_center=False)
 
 train_set = train_datagen.flow_from_directory(path_drive + '//Train',
-                                              target_size=(64,64),
-                                                  color_mode="rgb",
-                                                  classes=['lie down','fall','bend', 'run', 'sitdown','standup','walk'],
-                                                  class_mode="categorical",
-                                                  batch_size=32,
-                                                  shuffle=False,
-                                                  seed=None,
-                                                  save_to_dir=None,
-                                                  save_prefix="",
-                                                  save_format="jpg",
-                                                  follow_links=False,
-                                                  subset=None,
-                                                  interpolation="nearest")
+                                              target_size=(64, 64),
+                                              color_mode="rgb",
+                                              classes=['lie down', 'fall', 'bend', 'run', 'sitdown', 'standup', 'walk'],
+                                              class_mode="categorical",
+                                              batch_size=32,
+                                              shuffle=False,
+                                              seed=None,
+                                              save_to_dir=None,
+                                              save_prefix="",
+                                              save_format="jpg",
+                                              follow_links=False,
+                                              subset=None,
+                                              interpolation="nearest")
 
-
-
-
-
-test_set = test_datagen.flow_from_directory( path_drive + '//Test',
-                                            target_size=(64,64),
+test_set = test_datagen.flow_from_directory(path_drive + '//Test',
+                                            target_size=(64, 64),
                                             color_mode="rgb",
-                                            classes=['lie down','fall','bend', 'run', 'sitdown','standup','walk'],
+                                            classes=['lie down', 'fall', 'bend', 'run', 'sitdown', 'standup', 'walk'],
                                             class_mode="categorical",
                                             batch_size=32,
                                             shuffle=False,
@@ -112,23 +104,19 @@ test_set = test_datagen.flow_from_directory( path_drive + '//Test',
                                             subset=None,
                                             interpolation="nearest")
 
-
 from keras.callbacks import ModelCheckpoint
 
-checkpoint = ModelCheckpoint("model_weights.h5",monitor='val_accuracy',verbose=1,save_best_only=True,mode='max')
-callbacks_list=[checkpoint]
+checkpoint = ModelCheckpoint("model_weights.h5", monitor='val_accuracy', verbose=1, save_best_only=True, mode='max')
+callbacks_list = [checkpoint]
 
 history = Classifier.fit_generator(train_set,
-                                     epochs = 150,
-                                     validation_data = test_set,
-                                     callbacks=[checkpoint])
+                                   epochs=150,
+                                   validation_data=test_set,
+                                   callbacks=[checkpoint])
 
-
-
-
-#Save and serialize model structure to JSON
+# Save and serialize model structure to JSON
 Classifier_json = Classifier.to_json()
-with open("Classifier.json","w") as json_file:
+with open("Classifier.json", "w") as json_file:
     json_file.write(Classifier_json)
 
 # plot the evolution of Loss and Acuracy
@@ -142,7 +130,7 @@ plt.plot(history.history['loss'], label='Training Loss')
 plt.plot(history.history['val_loss'], label='Validation Loss')
 plt.legend(loc='upper right')
 
-plt.subplot(1,2,2)
+plt.subplot(1, 2, 2)
 plt.ylabel('Accuracy', fontsize=16)
 plt.plot(history.history['accuracy'], label='Training Accuracy')
 plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
@@ -163,7 +151,7 @@ import itertools
 
 def plot_confusion_matrix(cm, classes, title='Confusion matrix', cmap=plt.cm.Blues):
     cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-    plt.figure(figsize=(10,10))
+    plt.figure(figsize=(10, 10))
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
@@ -174,9 +162,9 @@ def plot_confusion_matrix(cm, classes, title='Confusion matrix', cmap=plt.cm.Blu
     fmt = '.2f'
     thresh = cm.max() / 2.
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i,j], fmt),
+        plt.text(j, i, format(cm[i, j], fmt),
                  horizontalalignment="center",
-                 color="white" if cm[i,j] > thresh else "black")
+                 color="white" if cm[i, j] > thresh else "black")
 
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
