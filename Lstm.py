@@ -158,11 +158,11 @@ def train_valid_split(numpy_tuple, train_portion=0.8, seed=200):
         index = np.random.permutation([i for i in range(x_arr.shape[0])])
         split_len = int(train_portion * x_arr.shape[0])
         x_train.append(x_arr[index[:split_len], ...])
-        tmpy = np.zeros((split_len, 7))
+        tmpy = np.zeros((split_len, 1))
         tmpy[:, i] = 1
         y_train.append(tmpy)
         x_valid.append(x_arr[index[split_len:], ...])
-        tmpy = np.zeros((x_arr.shape[0] - split_len, 7))
+        tmpy = np.zeros((x_arr.shape[0] - split_len, 1))
         tmpy[:, i] = 1
         y_valid.append(tmpy)
 
@@ -281,7 +281,7 @@ if __name__ == '__main__':
         y_train, verbose=1,
         batch_size=64, epochs=300,
         validation_split=0.2,
-        steps_per_epoch=60,
+        # steps_per_epoch=len(x_train)//batch_size,
         validation_data=(x_valid, y_valid),
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint('best_lstm.hdf5',
