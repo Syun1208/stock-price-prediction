@@ -166,7 +166,7 @@ class AttenLayer(tf.keras.layers.Layer):
     Attention Layers used to Compute Weighted Features along Time axis
     Args:
         num_state :  number of hidden Attention state
-    
+
     edited code provided on https://github.com/ludlows
     """
 
@@ -217,7 +217,7 @@ class CSIModelConfig:
         """
         Returns the Numpy Array for training within the format of (X_lable1, y_label1, ...., X_label7, y_label7)
         Args:
-            raw_folder: the folder containing raw CSI 
+            raw_folder: the folder containing raw CSI
             save      : choose if save the numpy array
         """
         numpy_tuple = extract_csi(raw_folder, self._labels, save, self._win_len, self._thrshd, self._step)
@@ -255,7 +255,16 @@ class CSIModelConfig:
             x_in = tf.keras.Input(shape=(self._win_len, 1))
         x_tensor = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=n_unit_lstm, return_sequences=True))(x_in)
         x_tensor = AttenLayer(n_unit_atten)(x_tensor)
-        pred = tf.keras.layers.Dense(len(self._labels), activation='softmax')(x_tensor)
+        x_tensor = tf.keras.layers.Dense(512, activation='leaky_relu')(x_tensor)
+        x_tensor = tf.keras.layers.Dropout(0.3)(x_tensor)
+        x_tensor = tf.keras.layers.Dense(256, activation='leaky_relu')(x_tensor)
+        x_tensor = tf.keras.layers.Dropout(0.5)(x_tensor)
+        # x_tensor = tf.keras.layers.Dense(128, activation='leaky_relu')(x_tensor)
+        # x_tensor = tf.keras.layers.Dropout(0.2)(x_tensor)
+        # x_tensor = tf.keras.layers.Dense(64, activation='leaky_relu')(x_tensor)
+        # x_tensor = tf.keras.layers.Dropout(0.2)(x_tensor)
+        pred = tf.keras.layers.Dense(len(self._labels), activation='leaky_relu')(x_tensor)
+        # pred = tf.keras.layers.Dropout(0.5)(pred)
         model = tf.keras.Model(inputs=x_in, outputs=pred)
         return model
 
@@ -294,13 +303,13 @@ if __name__ == "__main__":
     # train
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
-        loss='categorical_crossentropy',
+        loss='mse',
         metrics=['accuracy'])
     model.summary()
     history = model.fit(
         x_train,
         y_train,
-        batch_size=128, epochs=200,
+        batch_size=32, epochs=200,
         validation_data=(x_valid, y_valid),
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint('best_attend.hdf5',
@@ -320,7 +329,6 @@ if __name__ == "__main__":
     cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
     cmd = ConfusionMatrixDisplay(cm, display_labels=["money"])
     plt.figure(figsize=(40, 40))
-
     # print(cm)
     cmd.plot()
     plt.title('confusion matrix')
@@ -351,4 +359,12 @@ if __name__ == "__main__":
     plt.legend(['train', 'test'], loc='upper left')
     plt.savefig('model_loss.png')
     plt.show()
+
+    plt.plot([i for i, _ in enumerate(y_pred)], y_pred)
+    plt.plot([i for i, _ in enumerate(y_valid)], y_valid)
+    plt.title('Correlation')
+    plt.ylabel('value')
+    plt.xlabel('index')
+    plt.legend(['y_pred', 'y_valid'], loc='upper left')
+    plt.savefig('model_prediction.png')
     te = open('log.txt', 'w')  # File where you need to keep the logs
