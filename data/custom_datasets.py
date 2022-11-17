@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from pathlib import Path
 import sys
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import numpy as np
 import argparse
 
@@ -19,7 +19,8 @@ class converter:
     def __init__(self, path_csv):
         self.path_csv = pd.read_csv(os.path.join(WORK_DIR, path_csv))
         self.folder_save = '/'.join(path_csv.split('/')[:2])
-        self.scale = MinMaxScaler(feature_range=(0, 1))
+        # self.scale = MinMaxScaler(feature_range=(0, 1))
+        self.scale = StandardScaler()
 
     def __writeUserSampleFile(self):
         self.path_csv = self.path_csv.to_dict('list')
