@@ -1,3 +1,4 @@
 datasets
 CSV
 .idea
+__pycache__/
