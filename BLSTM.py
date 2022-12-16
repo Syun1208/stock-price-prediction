@@ -1,9 +1,12 @@
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import glob
 import os
 import csv
 import argparse
+import tqdm
+from sklearn.preprocessing import MinMaxScaler
 
 
 # import keras
@@ -85,7 +88,7 @@ def extract_csi_by_label(raw_folder, label, labels, save=False, win_len=500, thr
     annot_csv_files = sorted(glob.glob(annot_csv_files))
     feature = []
     index = 0
-    for csi_file, label_file in zip(input_csv_files, annot_csv_files):
+    for csi_file, label_file in tqdm.tqdm(zip(input_csv_files, annot_csv_files)):
         index += 1
         if not os.path.exists(label_file):
             print('Warning! Label File {} doesn\'t exist.'.format(label_file))
@@ -136,10 +139,39 @@ def train_valid_split(numpy_tuple, train_portion=0.75, seed=379):
     x_valid = np.concatenate(x_valid, axis=0)
     y_valid = np.concatenate(y_valid, axis=0)
 
-    index = np.random.permutation([i for i in range(x_train.shape[0])])
-    x_train = x_train[index, ...]
-    y_train = y_train[index, ...]
+    index_train = np.random.permutation([i for i in range(x_train.shape[0])])
+    x_train = x_train[index_train, ...]
+    y_train = y_train[index_train, ...]
+    index_valid = np.random.permutation([i for i in range(x_valid.shape[0])])
+    x_valid = x_valid[index_valid, ...]
+    y_valid = y_valid[index_valid, ...]
     return x_train, y_train, x_valid, y_valid
+
+
+def split_dataset(df, numpy_tuple, train_proportion, num_steps):
+    split_len = int(train_proportion * numpy_tuple.shape[0])
+    training_set = df.iloc[:split_len, 4:5].values
+    validation_set = df.iloc[split_len:, 4:5].values
+    sc = MinMaxScaler(feature_range=(-1, 2))
+    training_set_scaled = sc.fit_transform(training_set)
+    validation_set_scaled = sc.fit_transform(validation_set)
+    print(training_set_scaled.shape)
+    print(validation_set_scaled.shape)
+    X_train = []
+    y_train = []
+    X_val = []
+    y_val = []
+    for i in range(num_steps, split_len):
+        X_train.append(numpy_tuple[i - num_steps:i, 0])
+        y_train.append(numpy_tuple[i, 0])
+    for j in range(num_steps, numpy_tuple.shape[0] - split_len):
+        X_val.append(numpy_tuple[j - num_steps:j, 0])
+        y_val.append(numpy_tuple[j, 0])
+    X_train, y_train = np.array(X_train), np.array(y_train).reshape(len(y_train), 1)
+    X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+    X_val, y_val = np.array(X_val), np.array(y_val).reshape(len(y_val), 1)
+    X_val = np.reshape(X_val, (X_val.shape[0], X_val.shape[1], 1))
+    return X_train, y_train, X_val, y_val
 
 
 def extract_csi(raw_folder, labels, save=False, win_len=500, thrshd=0.6, step=50):
@@ -172,6 +204,9 @@ class AttenLayer(tf.keras.layers.Layer):
 
     def __init__(self, num_state, **kw):
         super(AttenLayer, self).__init__(**kw)
+        self.prob_kernel = None
+        self.bias = None
+        self.kernel = None
         self.num_state = num_state
 
     def build(self, input_shape):
@@ -179,7 +214,7 @@ class AttenLayer(tf.keras.layers.Layer):
         self.bias = self.add_weight('bias', shape=[self.num_state])
         self.prob_kernel = self.add_weight('prob_kernel', shape=[self.num_state])
 
-    def call(self, input_tensor):
+    def call(self, input_tensor, **kwargs):
         atten_state = tf.tanh(tf.tensordot(input_tensor, self.kernel, axes=1) + self.bias)
         logits = tf.tensordot(atten_state, self.prob_kernel, axes=1)
         prob = tf.nn.softmax(logits)
@@ -254,15 +289,16 @@ class CSIModelConfig:
         else:
             x_in = tf.keras.Input(shape=(self._win_len, 1))
         x_tensor = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=n_unit_lstm, return_sequences=True))(x_in)
-        x_tensor = AttenLayer(n_unit_atten)(x_tensor)
-        x_tensor = tf.keras.layers.Dense(512, activation='leaky_relu')(x_tensor)
         x_tensor = tf.keras.layers.Dropout(0.3)(x_tensor)
-        x_tensor = tf.keras.layers.Dense(256, activation='leaky_relu')(x_tensor)
-        x_tensor = tf.keras.layers.Dropout(0.5)(x_tensor)
+        x_tensor = AttenLayer(n_unit_atten)(x_tensor)
+        # x_tensor = tf.keras.layers.Dense(512, activation='leaky_relu')(x_tensor)
+        # x_tensor = tf.keras.layers.Dropout(0.5)(x_tensor)
+        # x_tensor = tf.keras.layers.Dense(256, activation='leaky_relu')(x_tensor)
+        # x_tensor = tf.keras.layers.Dropout(0.5)(x_tensor)
         # x_tensor = tf.keras.layers.Dense(128, activation='leaky_relu')(x_tensor)
         # x_tensor = tf.keras.layers.Dropout(0.2)(x_tensor)
         # x_tensor = tf.keras.layers.Dense(64, activation='leaky_relu')(x_tensor)
-        # x_tensor = tf.keras.layers.Dropout(0.2)(x_tensor)
+        x_tensor = tf.keras.layers.Dropout(0.2)(x_tensor)
         pred = tf.keras.layers.Dense(len(self._labels), activation='leaky_relu')(x_tensor)
         # pred = tf.keras.layers.Dropout(0.5)(pred)
         model = tf.keras.Model(inputs=x_in, outputs=pred)
@@ -281,25 +317,66 @@ class CSIModelConfig:
 
 def parser_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', type=str, help='Input your port connection', default='datasets/')
+    parser.add_argument('--path-train', type=str, help='Input your train', default='datasets/')
+    parser.add_argument('--path-test', type=str, help='Input your test', default='test/')
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def read_test_datasets(df_test, df, numpy_tuple, train_proportion, num_step):
+    num_train = int(train_proportion * numpy_tuple.shape[0])
+    testing_set = df_test.filter(['Close'])
+    # sc = MinMaxScaler(feature_range=(-1, 2))
+    # testing_set = sc.fit_transform(testing_set)
+    training_set = df.iloc[:num_train, 4:5]
+    print(testing_set.shape)
+    print(training_set.shape)
+    total_dataset = pd.concat((training_set['Close'], testing_set['Close']), axis=0)
+    inputs = total_dataset[len(total_dataset) - len(training_set) - num_step:].values
+    inputs = inputs.reshape(-1, 1)
+    # sc = MinMaxScaler(feature_range=(-1, 2))
+    # inputs = sc.fit_transform(inputs)
+    X_test = []
+    for i in range(num_step, inputs.shape[0]):
+        X_test.append(inputs[i - num_step:i, :])
+    X_test = np.array(X_test)
+    X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+    return X_test, testing_set
+
+
+def train_val_split(data, train_proportion, n_steps):
+    X, y = [], []
+    for i in range(len(data) - n_steps + 1):
+        X.append(data[i:i + n_steps, :-1])
+        y.append(data[i + n_steps - 1, -1])
+    split_inx = int(np.ceil(len(np.array(X) * train_proportion)))
+    X_train, X_test = X[:split_inx], X[split_inx:]
+    y_train, y_test = y[:split_inx], y[split_inx:]
+    return np.array(X_train), np.array(y_train), np.array(X_test), np.array(y_test)
+
+
+def main():
     import sys
 
     if len(sys.argv) != 2:
-        print("Error! Correct Command: python3 csimodel.py Dataset_folder_path")
+        SystemError("Error! Correct Command: python3 csimodel.py Dataset_folder_path")
     raw_data_folder = sys.argv[0]
     args = parser_args()
     # preprocessing
-    cfg = CSIModelConfig(win_len=500, step=50, thrshd=0.6, downsample=1)
-    x_money, y_money = cfg.preprocessing(args.path, save=True)
+    cfg = CSIModelConfig(win_len=2, step=1, thrshd=0.6, downsample=1)
+    x_money, y_money = cfg.preprocessing(args.path_train, save=True)
+    print(np.array(x_money).shape)
     # load previous saved numpy files, ignore this if you haven't saved numpy array to files before
     # numpy_tuple = cfg.load_csi_data_from_files(('x_lie_down.npz', 'x_fall.npz', 'x_bend.npz', 'x_run.npz', 'x_sitdown.npz', 'x_standup.npz', 'x_walk.npz'))
-    x_train, y_train, x_valid, y_valid = train_valid_split([x_money], train_portion=0.75, seed=379)
+    # x_train, y_train, x_valid, y_valid = train_valid_split([x_money], train_portion=0.75, seed=379)
+    # x_train, y_train, x_valid, y_valid = train_val_split(x_money, train_proportion=0.75, n_steps=2)
+    df = pd.read_csv('datasets/money/BTC-USD.csv')
+    df_test = pd.read_csv('test/money/BTC-USD-test.csv')
+    # Feature Scaling
+    x_train, y_train, x_valid, y_valid = split_dataset(df, x_money, train_proportion=0.75, num_steps=2)
+    print(x_train.shape, y_train.shape, x_valid.shape, y_valid.shape)
+    x_test, testing_set = read_test_datasets(df_test, df, x_money, train_proportion=0.75, num_step=2)
     # parameters for Deep Learning Model
-    model = cfg.build_model(n_unit_lstm=200, n_unit_atten=400)
+    model = cfg.build_model(n_unit_lstm=10, n_unit_atten=10)
     # train
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
@@ -309,7 +386,7 @@ if __name__ == "__main__":
     history = model.fit(
         x_train,
         y_train,
-        batch_size=32, epochs=200,
+        batch_size=64, epochs=200,
         validation_data=(x_valid, y_valid),
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint('best_attend.hdf5',
@@ -317,25 +394,22 @@ if __name__ == "__main__":
                                                save_best_only=True,
                                                save_weights_only=False)
         ])
-
-    # load the best model
-    model = cfg.load_model('best_attend.hdf5')
-    y_pred = model.predict(x_valid)
-
     from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
     import matplotlib.pyplot as plt
-
-    cm = confusion_matrix(np.argmax(y_valid, axis=1), np.argmax(y_pred, axis=1))
-    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-    cmd = ConfusionMatrixDisplay(cm, display_labels=["money"])
+    # print(np.array(y_pred).shape)
+    # print(np.array(y_valid).shape)
+    '''---------------------------------------------------------------------------------------------------------------'''
+    # cm = confusion_matrix(np.argmax(y_valid, axis=1), np.argmax(y_pred, axis=1))
+    # cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    # cmd = ConfusionMatrixDisplay(cm, display_labels=["money"])
     plt.figure(figsize=(40, 40))
-    # print(cm)
-    cmd.plot()
-    plt.title('confusion matrix')
-    plt.ylabel('y_valid')
-    plt.xlabel('y_pred')
-    plt.savefig('confusion_matrix.png')
-    plt.show()
+    # # print(cm)
+    # cmd.plot()
+    # plt.title('confusion matrix')
+    # plt.ylabel('y_valid')
+    # plt.xlabel('y_pred')
+    # plt.savefig('confusion_matrix.png')
+    # plt.show()
 
     # plot curves
     import matplotlib.pyplot as plt
@@ -347,7 +421,7 @@ if __name__ == "__main__":
     plt.title('model accuracy')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['train', 'val'], loc='upper left')
     plt.savefig('model_accuracy.png')
     plt.show()
 
@@ -356,15 +430,58 @@ if __name__ == "__main__":
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['train', 'val'], loc='upper left')
     plt.savefig('model_loss.png')
     plt.show()
-
-    plt.plot([i for i, _ in enumerate(y_pred)], y_pred)
-    plt.plot([i for i, _ in enumerate(y_valid)], y_valid)
-    plt.title('Correlation')
-    plt.ylabel('value')
-    plt.xlabel('index')
-    plt.legend(['y_pred', 'y_valid'], loc='upper left')
+    '''---------------------------------------------------------------------------------------------------------------'''
+    # load testing datasets
+    # from sklearn.preprocessing import MinMaxScaler
+    # df_test = pd.read_csv('test/money/BTC-USD-test.csv')
+    # df_test = df_test.to_dict('list')
+    # scale = MinMaxScaler(feature_range=(0, 1))
+    # df_test = scale.fit_transform(np.array(df_test['Close']).reshape(-1, 1))
+    # x_test_money, y_test_money = cfg.preprocessing(args.path_test, save=True)
+    # x_train_test, y_train_test, x_valid_test, y_valid_test = train_valid_split([x_test_money], train_portion=0.75,
+    #                                                                            seed=379)
+    # y_pred_test = model.predict(x_valid_test)
+    # print('X valid: ', np.array(x_valid).shape)
+    # print('X valid test: ', np.array(x_valid_test).shape)
+    # print('Y test: ', np.array(y_test).shape)
+    # Test
+    model = cfg.load_model('best_attend.hdf5')
+    # y_pred = model.predict(x_valid)
+    y_test = model.predict(x_test)
+    '''---------------------------------------------------------------------------------------------------------------'''
+    # plt.plot([i for i, _ in enumerate(y_pred)], y_pred)
+    # plt.plot([i for i, _ in enumerate(y_valid)], y_valid)
+    # # plt.plot([i for i, _ in enumerate(y_test.transpose(2, 0, 1).reshape(-1, y_test.shape[1]))],
+    # #          x_valid.transpose(2, 0, 1).reshape(-1, x_valid.shape[1]))
+    # plt.title('Correlation training datasets')
+    # plt.ylabel('value')
+    # plt.xlabel('index')
+    # plt.legend(['y_pred', 'y_val'], loc='upper left')
+    # plt.savefig('model_prediction_train.png')
+    # plt.show()
+    #
+    # plt.plot([i for i, _ in enumerate(y_pred_test)], y_pred_test)
+    # plt.plot([i for i, _ in enumerate(y_valid_test)], y_valid_test)
+    # # plt.plot([i for i, _ in enumerate(y_test.transpose(2, 0, 1).reshape(-1, y_test.shape[1]))],
+    # #          x_valid.transpose(2, 0, 1).reshape(-1, x_valid.shape[1]))
+    # plt.title('Correlation training datasets')
+    # plt.ylabel('value')
+    # plt.xlabel('index')
+    # plt.legend(['y_pred', 'y_test'], loc='upper left')
+    # plt.savefig('model_prediction_test.png')
+    # plt.show()
+    plt.plot(testing_set, 'b-', label='Real Stock Price Close')
+    plt.plot(y_test, 'r-', label='Predicted Stock Price')
+    plt.title('Doge Price Prediction')
     plt.savefig('model_prediction.png')
-    te = open('log.txt', 'w')  # File where you need to keep the logs
+    plt.xlabel('Time')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
