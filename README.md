@@ -13,6 +13,7 @@
 * [Prediction from real data](#prediction-from-real-data)
 * [Trend direction prediction](#trend-direction-prediction)
 * [Deep Reinforcement Learning](#deep-reinforcement-learning)
+* [Results](#results)
 
 ## Set up
 To run this project, install it locally using git
@@ -33,3 +34,6 @@ sc = MinMaxScaler(feature_range = (0, 1))
 # Prediction from real data
 # Trend direction prediction
 # Deep Reinforcement Learning
+# Results
+Totally, our experiments are reported in the link below.
+Link: [Results](https://drive.google.com/drive/u/0/folders/1DeJXSrPA_noV972V5Gg8l5yHGlUw0TkJ)
