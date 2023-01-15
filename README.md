@@ -22,9 +22,9 @@ git clone https://github.com/Syun1208/stock-price-prediction
 ```
 
 # Collecting data
-You can download data from yahoo.com: `DOGE-USD.csv`, `DOGE_TEST.csv`
+You can download data from yahoo.com: `DOGE-USD.csv`, `DOGE_TEST.csv`.
 
-It includes 1532 rows x 6 columns
+It includes 1532 rows x 6 columns.
 
 # Preprocessing data
 ```
@@ -36,4 +36,5 @@ sc = MinMaxScaler(feature_range = (0, 1))
 # Deep Reinforcement Learning
 # Results
 Totally, our experiments are reported in the link below.
+
 Link: [Results](https://drive.google.com/drive/u/0/folders/1DeJXSrPA_noV972V5Gg8l5yHGlUw0TkJ)
