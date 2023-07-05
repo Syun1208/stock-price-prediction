@@ -1,5 +1,5 @@
 # Senior Project 1 - Stock Price Prediction
-## Capstone project is made with Python 
+## Capstone project is made by Python 
 <div id="header" align="center">
   <img src="https://media.giphy.com/media/M9gbBd9nbDrOTu1Mqx/giphy.gif" width="100"/>
 </div>
