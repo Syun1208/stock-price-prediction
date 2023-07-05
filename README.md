@@ -34,6 +34,7 @@ sc = MinMaxScaler(feature_range = (0, 1))
 # Prediction from real data
 # Trend direction prediction
 # Deep Reinforcement Learning
+# Execute on Cloud System
 # Results
 Totally, our experiments are reported in the link below.
 
